@@ -144,7 +144,7 @@ def main() -> int:
     ckpt = settings.data_dir / "extraction_checkpoint.json"
     done: dict[str, list] = {}
     if ckpt.exists() and not args.force:
-        done = json.loads(ckpt.read_text())
+        done = json.loads(ckpt.read_text(encoding="utf-8"))
         if done:
             print(f"Resuming: {len(done)} filings already extracted "
                   f"(--force to redo)")
@@ -231,7 +231,7 @@ def main() -> int:
             continue
 
         done[accession] = [r for r in rows if r["accession"] == accession]
-        ckpt.write_text(json.dumps(done, indent=1, default=str))
+        ckpt.write_text(json.dumps(done, indent=1, default=str), encoding="utf-8")
 
         s = summarise(verdicts)
         print(f"{ticker} FY{fy}: exact={s['exact']:.0%} within2%={s['within_2pct']:.0%} "
@@ -365,7 +365,7 @@ def main() -> int:
     out = settings.data_dir / "extraction_results.json"
     out.write_text(json.dumps({"summary": s, "usage": u, "model": router.model,
                                "retrieval_ceiling": ceiling,
-                               "rows": rows}, indent=2, default=str))
+                               "rows": rows}, indent=2, default=str), encoding="utf-8")
     print(f"\nSaved -> {out}")
     print("""
 WHAT TO DO WITH THE ERROR TAXONOMY

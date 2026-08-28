@@ -35,5 +35,9 @@ eval:
 ci:
 	pytest -q --tb=short
 
+# Reads only artifacts already on disk -- no LLM calls, no network.
+demo:
+	streamlit run app/main.py
+
 clean:
 	rm -rf data/db/*.duckdb __pycache__ .pytest_cache

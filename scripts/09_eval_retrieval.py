@@ -237,7 +237,7 @@ def main() -> int:
     out = settings.data_dir / "retrieval_eval.json"
     out.write_text(json.dumps(
         {"model": embedder.model_name, "k": args.k, "n_queries": len(queries),
-         "timings_s": timings, "metrics": summary}, indent=2))
+         "timings_s": timings, "metrics": summary}, indent=2), encoding="utf-8")
     print(f"\nSaved -> {out}")
     print("""
 HOW TO READ THIS

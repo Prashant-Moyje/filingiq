@@ -51,7 +51,7 @@ def main() -> int:
         print("No results. Run scripts/10_extract.py first.")
         return 1
 
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     rows = data["rows"]
     if args.metric:
         rows = [r for r in rows if r["metric"] == args.metric]

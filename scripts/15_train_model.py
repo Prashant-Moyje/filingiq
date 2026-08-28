@@ -123,7 +123,7 @@ def main() -> int:
     out = settings.data_dir / "model_results.json"
     out.write_text(json.dumps({"target": args.target, "model": args.model,
                                "n_rows": len(df), "results": results,
-                               "permutation": perm}, indent=2, default=str))
+                               "permutation": perm}, indent=2, default=str), encoding="utf-8")
     print(f"\nSaved -> {out}")
 
     combined_p = perm.get("combined", {}).get("p_value")

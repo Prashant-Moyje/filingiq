@@ -40,7 +40,7 @@ def main() -> int:
         print("No analysis results. Run: python scripts/13_analyze.py --dry-run")
         return 1
 
-    rows = json.loads(path.read_text())
+    rows = json.loads(path.read_text(encoding="utf-8"))
     df = build_disclosure_features(rows)
     dropped = len(rows) - len(df)
     print(f"Disclosure features: {len(df)} usable rows of {len(rows)} "

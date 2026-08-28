@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 def load_universe(path: Path | None = None) -> list[str]:
     path = path or (settings.data_dir.parent / "config" / "universe.yaml")
-    data = yaml.safe_load(path.read_text())
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     return [t.upper() for t in data["tickers"]]
 
 
@@ -71,7 +71,7 @@ def run(
 
                 # --- ground truth -------------------------------------------
                 facts_path = client.cache_company_facts(cik, ticker)
-                company_facts = json.loads(facts_path.read_text())
+                company_facts = json.loads(facts_path.read_text(encoding="utf-8"))
 
                 for f in filings:
                     gt = extract_ground_truth(

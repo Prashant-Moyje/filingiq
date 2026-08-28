@@ -734,7 +734,45 @@ on.
 
 ---
 
-## FM-020: (yours goes here)
+## FM-020: Eight weeks of green tests that were broken on Windows
+
+**Symptom.** Three UI tests failed on the developer's Windows machine while
+passing everywhere they had been written:
+
+    UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in
+    position 5774: character maps to <undefined>
+
+**Root cause.** `Path.read_text()` with no `encoding` argument uses
+`locale.getpreferredencoding()` -- UTF-8 on Linux and macOS, **cp1252** on most
+Windows installs. `app/main.py` contains a curly quote in a docstring. cp1252
+cannot decode it.
+
+An AST audit found **17 such call sites** across `src`, `scripts`, `tests` and
+`app`. Every one had been correct on the machine it was written on and latent
+on the machine it would be run on.
+
+**Why nothing caught it earlier.** CI runs Ubuntu. The suite was green for
+eight weeks. The bug was not in any tested behaviour -- it was in how the test
+harness read a file, on a platform CI never exercised.
+
+**Fix.**
+- Explicit `encoding="utf-8"` on all 17 sites.
+- `tests/test_portability.py` walks the AST of every source file and fails if
+  any `read_text` / `write_text` / text-mode `open()` omits an encoding. Grep
+  cannot do this -- the calls span multiple lines -- but the AST can.
+
+**Note.** PEP 686 makes UTF-8 the default in Python 3.15, which will retire
+this whole class of bug. Until then it has to be written out.
+
+**Lesson.** "Works on my machine" has a specific technical form: default
+encodings, path separators, and line endings differ by platform, and none of
+them appear in your test output until someone else runs your code. A static
+check over the AST costs nothing per run and catches the entire class rather
+than the instance that happened to surface.
+
+---
+
+## FM-021: (yours goes here)
 
 Candidates you will almost certainly hit:
 - Banks (JPM, GS) missing most metrics — different us-gaap tag families

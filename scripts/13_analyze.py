@@ -127,7 +127,7 @@ def main() -> int:
             })
 
     out = settings.data_dir / "analysis_results.json"
-    out.write_text(json.dumps(results, indent=2, default=str))
+    out.write_text(json.dumps(results, indent=2, default=str), encoding="utf-8")
 
     print(f"\n{'=' * 74}")
     total_claims = sum(r["claim_report"].get("numeric_claims", 0) for r in results)

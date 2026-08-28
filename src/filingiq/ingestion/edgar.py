@@ -203,5 +203,5 @@ class EdgarClient:
         if dest.exists() and dest.stat().st_size > 0:
             return dest
         facts = self.get_company_facts(cik)
-        dest.write_text(json.dumps(facts))
+        dest.write_text(json.dumps(facts), encoding="utf-8")
         return dest
