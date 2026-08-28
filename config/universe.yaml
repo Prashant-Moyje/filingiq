@@ -1,0 +1,60 @@
+# Universe for the ML layer.
+#
+# 16 filings (4 companies x 4 years) is not enough to fit or validate a model.
+# With FY2021 lacking a baseline, only 12 rows carry a drift score. Any result
+# from that is noise dressed as a finding.
+#
+# Drift features cost NOTHING to compute: EDGAR is free, and the diff embeds
+# chunks on the fly rather than querying the vector store. So the corpus can be
+# widened without spending a cent of LLM quota -- only the extraction and memo
+# layers cost money, and those stay scoped to a subset.
+#
+# 32 companies x 7 years (FY2018-2024) = ~224 filings, ~192 usable rows after
+# dropping each company's baseline year. Still small, but enough to fit a
+# regularised model and run honest walk-forward validation.
+#
+# Sector spread is deliberate: risk-disclosure conventions differ sharply
+# between banks, retailers and technology firms, and a model fitted only on
+# tech would not generalise -- the same lesson the parser taught in FM-004.
+
+tickers:
+  # Technology
+  - AAPL
+  - MSFT
+  - NVDA
+  - CRM
+  - ADBE
+  - INTC
+  - CSCO
+  # Retail / consumer
+  - WMT
+  - COST
+  - TGT
+  - NKE
+  - SBUX
+  - MCD
+  # Financials
+  - JPM
+  - GS
+  - BAC
+  - AXP
+  # Healthcare / pharma
+  - JNJ
+  - PFE
+  - UNH
+  - ABBV
+  # Industrials
+  - CAT
+  - BA
+  - GE
+  - HON
+  # Energy
+  - XOM
+  - CVX
+  - COP
+  # Telecom / media
+  - DIS
+  - T
+  - VZ
+  # Airlines -- high disclosure volatility, useful signal
+  - DAL

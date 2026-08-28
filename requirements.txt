@@ -1,0 +1,56 @@
+# --- Week 1: ingestion + storage ---
+requests>=2.32
+python-dotenv>=1.0
+duckdb>=1.1
+pyyaml>=6.0
+pandas>=2.2
+tenacity>=9.0
+
+# --- Week 2: parsing ---
+lxml>=5.0            # REQUIRED: without it, tables are shredded by the fallback
+
+# --- Week 3: retrieval ---
+sentence-transformers>=3.3
+qdrant-client>=1.12
+rank-bm25>=0.2.2
+numpy>=1.24
+# tiktoken>=0.8        # optional: exact token counts (falls back to a heuristic)
+
+# --- Week 4-5: agents ---
+# langgraph>=0.2
+# langchain-core>=0.3
+# pydantic>=2.9
+# instructor>=1.7
+# ollama>=0.4
+# groq>=0.13
+# langfuse>=2.55
+
+# --- Week 6-7: ML + eval ---
+# scikit-learn>=1.5
+# lightgbm>=4.5
+# shap>=0.46
+# mlflow>=2.19
+# ragas>=0.2
+# yfinance>=0.2
+
+# --- Week 8: serving ---
+# fastapi>=0.115
+# streamlit>=1.41
+# plotly>=5.24
+
+# --- dev ---
+pytest>=8.3
+
+# --- Week 4: extraction ---
+groq>=0.13
+pydantic>=2.9
+
+# --- Week 5: orchestration ---
+langgraph>=0.2
+
+# --- Week 6: ML layer ---
+yfinance>=0.2
+pyarrow>=15.0
+scikit-learn>=1.5
+lightgbm>=4.5
+shap>=0.46

@@ -1,0 +1,14 @@
+.env
+data/raw/
+data/db/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+mlruns/
+.DS_Store
+
+data/qdrant/
+data/*.pkl
+data/*.json

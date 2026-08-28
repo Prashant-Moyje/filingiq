@@ -1,0 +1,46 @@
+name: tests
+
+# The full suite runs offline: no network, no API key, no model downloads.
+# LLM calls are stubbed and heavy optional dependencies are skipped via
+# pytest.importorskip, so CI stays under a minute and never flakes on a
+# provider outage. A test suite that needs credentials does not get run.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install (CI subset — no torch, no vector DB)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt
+
+      - name: Run tests
+        run: pytest -q --tb=short
+
+      - name: Verify no fabricated-observation guards were weakened
+        # These three guard the failure modes that produce PLAUSIBLE wrong
+        # values rather than crashes -- the ones that reach a README and do
+        # not reproduce. Named explicitly so a future refactor cannot delete
+        # them without the diff being obvious.
+        run: |
+          pytest -q \
+            tests/test_analysis.py::test_empty_current_year_gives_undefined_drift \
+            tests/test_features.py::test_unparsed_current_year_is_dropped_not_scored_as_zero_drift \
+            tests/test_models.py::test_no_signal_found_in_pure_noise \
+            tests/test_extraction.py::test_prior_year_is_wrong_even_inside_tolerance
