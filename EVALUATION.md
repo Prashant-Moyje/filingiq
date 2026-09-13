@@ -480,10 +480,63 @@ corpus carry 17–278 risk factors. A first attempt using 40 near-identical
 factors reported 0% spurious everywhere, which was an artifact of every chunk
 matching every other chunk; that run was discarded rather than reported.
 
-**What remains genuinely unvalidated** is the thresholds. 0.95 and 0.80 are
-asserted, not calibrated: there is no labelled set of "this risk factor was
-rewritten / was not", so no precision-recall figure for the diff exists
-anywhere in this report. That, not boundary displacement, is the open question.
+### Threshold calibration
+
+`UNCHANGED_THRESHOLD = 0.95` and `MODIFIED_THRESHOLD = 0.80` were asserted, not
+fitted. `scripts/16_calibrate_diff.py` measures them against a labelled set
+(`analysis/calibration_set.py`) in which each current-year factor is derived
+from a prior-year one by a known transformation, so its correct status is known
+before any model sees it. Scoring uses the production alignment — each factor
+against its **best** match in the whole prior section, not an isolated pair,
+because a genuinely new risk is compared with whichever prior factor most
+resembles it.
+
+| True label | n | Min cosine | Mean | Max |
+|---|---|---|---|---|
+| unchanged | 4 | 0.9493 | 0.9871 | 1.0000 |
+| modified | 3 | 0.8079 | 0.8206 | 0.8379 |
+| new | 3 | 0.7191 | 0.7310 | 0.7393 |
+
+The three classes separate cleanly — margins of +0.111 and +0.069 — so the
+embedding is doing its job. The thresholds are the problem.
+
+**Shipped thresholds score 90%.** The single error is diagnostic:
+
+| Topic | True | Predicted | Cosine |
+|---|---|---|---|
+| regulatory | unchanged | **modified** | 0.9493 |
+
+A risk factor carried forward with only figures and dates refreshed lands
+0.0007 below 0.95 and is counted as a rewrite.
+
+**Both thresholds sit almost exactly on a class edge:**
+
+- **0.95 is `+0.0007` above the lowest true `unchanged`** — it is already
+  misclassifying that case.
+- **0.80 is `−0.0079` below the lowest true `modified`** — under a hundredth of
+  a point of margin.
+
+Max-margin placement (the midpoint of each gap, which is the choice furthest
+from the nearest labelled example on either side) is **0.89 / 0.77**, and
+scores 100% on this set. 77 threshold pairs reach 100%, so accuracy alone
+cannot choose between them; the midpoint can.
+
+**The two errors have different consequences**, which matters for reading §7:
+
+- A `unchanged → modified` error (the 0.95 case) **inflates `drift_score`**,
+  since drift is `(new + modified) / total`.
+- A `modified → new` error (the 0.80 risk) leaves `drift_score` **unchanged** —
+  both count — but corrupts `n_new`, `n_modified`, `new_rate` and
+  `modified_rate`, which are themselves features in the model.
+
+**The thresholds have not been changed.** Ten labelled pairs, constructed by
+one author, are not enough to justify replacing a shipped constant — that would
+swap an unjustified number for a barely-less-unjustified one and invalidate
+every published `drift_score` at the same time. What the calibration
+establishes is the *direction* and the *absence of margin*, and it ships as a
+harness so the set can be expanded. Roughly 50 pairs spanning more
+transformation types, ideally labelled against real consecutive filings, would
+justify a change.
 
 **A design change that would remove the ambiguity:** segment Item 1A into risk
 factors (delimited by bold or capitalised headings in most filings) and diff
