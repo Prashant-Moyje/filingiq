@@ -7,22 +7,31 @@ the SEC's own XBRL data for that exact filing. Extraction accuracy is therefore
 a **measured number, not a claim**.
 
 ```
-216 filings · 28 companies · FY2018–2024 · 65,000 chunks · 204 tests · 19 documented failure modes
+Extraction + retrieval   16 filings · 4 companies · 6,054 chunks
+Disclosure-drift study  216 filings · 28 companies · FY2018–2024 · 65,000 chunks
+                        215 tests · 21 documented failure modes
 ```
+
+**Two corpora, and the difference matters.** The extraction and retrieval
+numbers below were measured on a deliberately small, deliberately awkward set
+of 16 filings from 4 companies (AAPL, MSFT, WMT, JPM — mixed sectors and filing
+styles). The 216-filing corpus exists for the disclosure-drift study in §7 and
+is the basis for *only* that row. Treating 95.5% as a 216-filing result would
+overstate it by a factor of 13.
 
 ---
 
 ## Results
 
-| Metric | Result | Notes |
-|---|---|---|
-| **Financial extraction accuracy vs XBRL** | **95.5% exact**, 98.5% within 2% | 134 figures, verified arithmetically |
-| Cost per filing | **$0.0023** | grouped calls cut this 62% |
-| Retrieval hit@5 | **0.852** [0.797, 0.901] | 182 queries, bootstrap CI |
-| Effect of metadata routing | **+70% MRR** | 0.399 → 0.678, same eval set |
-| Reranking on numeric queries | **+0.111 MRR** (p=0.017) | pooled effect is null — see §4d |
-| Abstention correctness | **12/12** | declined only where no ground truth exists |
-| Disclosure features → 90d excess return | **null** (p = 0.34–0.95) | permutation-tested; §7 |
+| Metric | Result | Measured on | Notes |
+|---|---|---|---|
+| **Financial extraction accuracy vs XBRL** | **95.5% exact**, 98.5% within 2% | 134 figures · 16 filings · 4 companies | verified arithmetically; §5 |
+| Cost per filing | **$0.0023** | same 16 filings | grouped calls cut this 62% |
+| Retrieval hit@5 | **0.852** [0.797, 0.901] | 182 queries · same 4 companies | bootstrap CI; §4b |
+| Effect of metadata routing | **+70% MRR** | same 182 queries | 0.399 → 0.678; §4a |
+| Reranking on numeric queries | **+0.111 MRR** (p=0.017) | 64 numeric queries | pooled effect is null — §4d |
+| Abstention correctness | **18/18** | same 16 filings | declined only where no ground truth exists; §5 |
+| Disclosure features → 90d excess return | **null** (p = 0.34–0.95) | 155 company-years · 28 companies | permutation-tested; §7 |
 
 Full methodology, ablations and confidence intervals: **[EVALUATION.md](EVALUATION.md)**
 What broke and why: **[FAILURE_MODES.md](FAILURE_MODES.md)**
@@ -121,7 +130,7 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 cp .env.example .env        # set SEC_USER_AGENT to your name + email (required)
 
-pytest -q                   # 204 tests, no network or API key needed
+pytest -q                   # 215 tests, no network or API key needed
 
 python scripts/01_ingest.py         # EDGAR + XBRL ground truth
 python scripts/03_parse.py          # sections
@@ -160,6 +169,12 @@ router · scikit-learn · pytest
 
 Stated here rather than left to be discovered:
 
+- **Extraction accuracy rests on 4 companies.** 95.5% is 134 scorable figures
+  from 16 filings. The sample is chosen to be hard rather than flattering —
+  JPM alone accounts for every remaining error — but 4 issuers cannot establish
+  that the number holds across filing styles. EVALUATION.md §5 lists widening
+  this as the next measurement, and until it is run the figure should be read
+  as "95.5% on these four" rather than a system-level accuracy.
 - **28 of 216 filings fail Item 1A parsing** (GE, INTC, MCD and others use
   structures the sectioniser does not handle). They are excluded from the
   feature store, not silently scored as zero change — see FM-019.
