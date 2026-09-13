@@ -42,8 +42,14 @@ class Settings:
     groq_model: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     groq_api_key: str = os.getenv("GROQ_API_KEY", "")
 
+    # Consumed by retrieval/embedder.py. Every number in EVALUATION.md section 4
+    # was produced with this model; overriding it invalidates them.
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
-    reranker_model: str = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+    # NOTE: there is deliberately no `reranker_model` setting. An earlier one
+    # defaulted to bge-reranker-v2-m3 and was read by nothing -- the reranker is
+    # chosen from hybrid.RERANKER_MODELS via `--reranker {fast,base,large}`, and
+    # defaults to 'fast'. A config value the code never loads is worse than no
+    # config value: it documents a system that does not exist.
 
     qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
 

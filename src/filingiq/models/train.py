@@ -86,7 +86,18 @@ class WalkForwardResult:
     feature_set: str
     model: str
     folds: list[FoldResult] = field(default_factory=list)
-    coefficients: dict = field(default_factory=dict)
+    # {test_year: {feature: coefficient}} -- one entry PER FOLD. An earlier
+    # version stored a single flat {feature: coefficient} dict that every fold
+    # overwrote, so it reported the last fold's coefficients while reading as
+    # though it described the model. Coefficients fitted on 52 rows and on 129
+    # rows are different objects; collapsing them hides the instability that is
+    # the most interesting thing about them at this sample size.
+    coefficients: dict[int, dict] = field(default_factory=dict)
+
+    @property
+    def last_fold_coefficients(self) -> dict:
+        """Coefficients from the final (largest-training-set) fold."""
+        return self.coefficients[max(self.coefficients)] if self.coefficients else {}
 
     def summary(self) -> dict:
         if not self.folds:
@@ -180,7 +191,7 @@ def walk_forward(df: pd.DataFrame, feature_set: str = "combined",
             rmse=rmse, baseline_rmse=baseline))
 
         if model == "ridge":
-            result.coefficients = dict(zip(cols, est.coef_))
+            result.coefficients[int(test_year)] = dict(zip(cols, est.coef_))
 
     return result
 
@@ -200,6 +211,13 @@ def permutation_test(df: pd.DataFrame, feature_set: str = "combined",
     if observed is None or np.isnan(observed):
         return {"observed_ic": float("nan"), "p_value": float("nan")}
 
+    # Drop unusable targets BEFORE shuffling. Permuting a column that still
+    # contains NaN moves those NaNs onto different rows each time, so
+    # walk_forward's dropna() removes a DIFFERENT set of rows per permutation
+    # and the null distribution is built on varying sample sizes. The null must
+    # differ from the observed run in the target's ORDER and nothing else.
+    df = df[pd.to_numeric(df[target], errors="coerce").notna()].copy()
+
     null_ics = []
     for _ in range(n_permutations):
         shuffled = df.copy()
@@ -215,7 +233,14 @@ def permutation_test(df: pd.DataFrame, feature_set: str = "combined",
 
     null_ics = np.array(null_ics)
     # Two-sided: how often does chance produce an |IC| at least this large?
-    p = float(np.mean(np.abs(null_ics) >= abs(observed)))
+    #
+    # The +1 in numerator and denominator (Phipson & Smyth 2010) counts the
+    # OBSERVED arrangement as one of the permutations, which it is. Without it
+    # the estimator can return p = 0.0 -- a claim no finite permutation test
+    # can support, and the exact overclaim this layer exists to prevent. The
+    # floor becomes 1/(n+1): with 200 shuffles, p >= 0.005.
+    n_at_least = int(np.sum(np.abs(null_ics) >= abs(observed)))
+    p = (n_at_least + 1) / (len(null_ics) + 1)
     return {
         "observed_ic": round(observed, 4),
         "null_mean_ic": round(float(null_ics.mean()), 4),

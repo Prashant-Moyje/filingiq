@@ -60,10 +60,18 @@ def main() -> int:
         if not s:
             print(f"{name:<16}  (insufficient data)")
             continue
-        results[name] = {"summary": s,
-                         "folds": [f.__dict__ for f in r.folds],
-                         "coefficients": {k: round(float(v), 5)
-                                          for k, v in r.coefficients.items()}}
+        results[name] = {
+            "summary": s,
+            "folds": [f.__dict__ for f in r.folds],
+            # Keyed by test year. Saving every fold rather than one flattened
+            # dict is what makes coefficient INSTABILITY across folds visible;
+            # at 52-to-129 training rows that instability is the finding.
+            "coefficients_by_fold": {
+                str(year): {k: round(float(v), 5) for k, v in coefs.items()}
+                for year, coefs in r.coefficients.items()},
+            "coefficients_final_fold": {
+                k: round(float(v), 5)
+                for k, v in r.last_fold_coefficients.items()}}
         print(f"{name:<16}{s['n_folds']:>7}{s['n_test_total']:>8}"
               f"{s['mean_ic']:>10.4f}{s['std_ic']:>9.4f}"
               f"{s['mean_auc']:>10.4f}{s['mean_rmse_improvement']:>13.1%}")
@@ -107,8 +115,8 @@ def main() -> int:
                   f"p={p['p_value']:.3f}  {verdict}")
 
     # ---- what the model leaned on ----------------------------------------
-    if "combined" in results and results["combined"]["coefficients"]:
-        coefs = results["combined"]["coefficients"]
+    if "combined" in results and results["combined"]["coefficients_final_fold"]:
+        coefs = results["combined"]["coefficients_final_fold"]
         top = sorted(coefs.items(), key=lambda kv: -abs(kv[1]))[:12]
         print("\n" + "=" * 78)
         print("LARGEST RIDGE COEFFICIENTS (standardised features, final fold)")

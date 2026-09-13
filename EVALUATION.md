@@ -297,9 +297,14 @@ variance.
 
 | Feature set | Observed IC | Null mean ± σ | p | Verdict |
 |---|---|---|---|---|
-| Fundamentals | −0.066 | +0.001 ± 0.098 | 0.520 | indistinguishable from chance |
-| Disclosure | +0.091 | +0.003 ± 0.104 | 0.340 | indistinguishable from chance |
+| Fundamentals | −0.066 | +0.001 ± 0.098 | 0.522 | indistinguishable from chance |
+| Disclosure | +0.091 | +0.003 ± 0.104 | 0.343 | indistinguishable from chance |
 | Combined | +0.009 | +0.001 ± 0.106 | 0.950 | indistinguishable from chance |
+
+p-values use the (n+1) correction of Phipson & Smyth (2010), which counts the
+observed arrangement as one of the permutations. The uncorrected estimator can
+return p = 0.0 — a claim 200 shuffles cannot support — and reported 0.520 /
+0.340 / 0.950 here. No conclusion changes; the floor is now 1/201 = 0.005.
 
 **The disclosure IC of +0.091 is why this test is not optional.** It looks like
 a usable signal — in quantitative finance an IC of 0.02–0.05 is genuinely

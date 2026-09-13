@@ -114,3 +114,55 @@ def test_baseline_rmse_uses_the_training_mean():
 def test_summary_is_empty_without_folds():
     tiny = make_df(n_per_year=2)
     assert walk_forward(tiny, "combined", min_train=1000).summary() == {}
+
+
+# --- regression guards -----------------------------------------------------
+#
+# Each of these covers a defect that produced a PLAUSIBLE wrong number rather
+# than a crash -- the class that reaches a report and does not reproduce.
+
+def test_permutation_p_value_can_never_be_zero():
+    """A finite permutation test cannot support p = 0.0.
+
+    Without the (n+1) correction the estimator returns exactly 0.0 whenever no
+    shuffle beats the observed statistic, which on a strongly planted signal is
+    every shuffle. p=0.0 is an infinitely strong claim from 60 samples.
+    """
+    p = permutation_test(make_df(seed=7, signal=5.0), "combined",
+                         n_permutations=60)
+    assert p["p_value"] > 0.0, "reported p = 0.0 from a finite permutation test"
+    assert p["p_value"] >= 1 / (p["n_permutations"] + 1) - 1e-12
+    assert p["p_value"] < 0.05, "correction must not destroy real detection"
+
+
+def test_permutation_null_uses_a_constant_sample_size():
+    """Rows unusable in the observed run must not re-enter via the shuffle.
+
+    Permuting a target column that still contains NaN relocates those NaNs on
+    every draw, so each permutation is scored on a different subset and the
+    null describes varying sample sizes rather than varying order.
+    """
+    df = make_df(seed=11)
+    df.loc[df.index[:12], "excess_return"] = np.nan
+
+    p = permutation_test(df, "combined", n_permutations=40)
+    assert not np.isnan(p["p_value"])
+    # With a constant sample the null spread stays in a sane range; a null
+    # built on wobbling n inflates it.
+    assert p["null_std_ic"] < 0.5
+
+
+def test_coefficients_are_kept_per_fold_not_overwritten():
+    """A single flat dict silently reported only the last fold's coefficients.
+
+    Coefficients fitted on the first fold's training rows and on the last
+    fold's are different objects, and the spread between them is the honest
+    signal about stability at this sample size.
+    """
+    r = walk_forward(make_df(), "combined", model="ridge")
+    assert len(r.coefficients) == len(r.folds), (
+        "expected one coefficient set per fold")
+    assert set(r.coefficients) == {f.test_year for f in r.folds}
+    for coefs in r.coefficients.values():
+        assert isinstance(coefs, dict) and coefs
+    assert r.last_fold_coefficients == r.coefficients[max(r.coefficients)]

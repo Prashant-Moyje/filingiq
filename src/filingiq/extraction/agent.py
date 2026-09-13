@@ -278,6 +278,12 @@ class ExtractionAgent:
             return ExtractedFigure(metric=metric, found=False,
                                    reasoning="no chunks retrieved")
 
+        # The FM-015 scope guard applies to BOTH call paths. It was originally
+        # added only to extract_group, which left --no-group running without
+        # the lexical demotion that fixed JPM -- and --no-group is the mode
+        # measured as MORE accurate on JPM (86% vs 71%). Two mitigations for
+        # one failure mode, on mutually exclusive code paths, is not a fix.
+        hits = deprioritise_non_consolidated(hits)
         context, id_map = build_context(hits)
         retrieved_ids = [h.chunk_id for h in hits]
         user = USER_TEMPLATE.format(

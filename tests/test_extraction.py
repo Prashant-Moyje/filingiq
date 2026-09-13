@@ -543,3 +543,57 @@ def test_no_ground_truth_must_not_count_against_accuracy():
     s = summarise(vs)
     assert s["n_scorable"] == 2
     assert s["exact"] == 1.0, "an unscorable figure diluted the accuracy"
+
+
+# --- FM-015 scope guard must cover BOTH call paths -------------------------
+
+class CapturingRouter(FakeRouter):
+    """Records the user prompt so excerpt ORDER can be asserted."""
+    def __init__(self, responses):
+        super().__init__(responses)
+        self.prompts = []
+
+    def complete(self, system, user, **kw):
+        self.prompts.append(user)
+        return super().complete(system, user, **kw)
+
+
+def _scoped_hits():
+    """Retriever returns the WRONG table first -- exactly the JPM case."""
+    return [FakeHit("parent", "Parent Company Only condensed balance sheet "
+                              "Total assets 568,481"),
+            FakeHit("consolidated", "Consolidated balance sheets "
+                                    "Total assets 3,743,567")]
+
+
+def _excerpt_order(prompt: str) -> list[str]:
+    import re
+    return re.findall(r"Total assets ([\d,]+)", prompt)
+
+
+def test_scope_guard_applies_on_the_per_metric_path():
+    """--no-group must not bypass the fix that made JPM correct.
+
+    The guard was originally added to extract_group only, so the per-metric
+    mode -- the one measured as MORE accurate on JPM (86% vs 71%) -- ran
+    without it. A fix that covers one of two paths leaves the failure live on
+    the other, and produces a coherent wrong figure rather than an error.
+    """
+    from filingiq.extraction.agent import ExtractionAgent
+    router = CapturingRouter([GOOD])
+    agent = ExtractionAgent(FakeRetriever(_scoped_hits()), router)
+    agent.extract_metric("total_assets", "JPM", 2024)
+
+    assert _excerpt_order(router.prompts[0])[0] == "3,743,567", (
+        "consolidated statement must be the first excerpt on the per-metric "
+        "path, not just the grouped one")
+
+
+def test_scope_guard_applies_on_the_grouped_path():
+    from filingiq.extraction.agent import ExtractionAgent
+    router = CapturingRouter(['{"figures": [{"metric": "total_assets", '
+                             '"found": false, "confidence": 0.1}]}'])
+    agent = ExtractionAgent(FakeRetriever(_scoped_hits()), router)
+    agent.extract_group("balance_sheet", ["total_assets"], "JPM", 2024)
+
+    assert _excerpt_order(router.prompts[0])[0] == "3,743,567"
