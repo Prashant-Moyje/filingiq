@@ -310,6 +310,35 @@ beyond what fundamentals provide?
 | Model | Ridge (α=10); ~40 features on ~130 training rows makes a boosted tree pure overfitting |
 | Imputation & scaling | Fitted **within each fold** — banks lack `operating_income`, retailers lack `rnd_expense` |
 
+### One known contaminated row
+
+`data/features.csv` as committed contains
+
+    T (AT&T) FY2019 — 33 risk factors, drift_score = 1.0000
+
+the highest drift value in the file. Its FY2018 baseline parsed to 5 chunks
+against FY2019's 33, which the size guard should have rejected as a parsing
+artifact — but that guard was never wired up (FM-022). The code is now fixed;
+this file predates the fix and is left as generated rather than hand-edited, so
+it stays a genuine pipeline artifact. It drops out the next time
+`13_analyze.py` and `14_build_features.py` run against the corpus.
+
+**Measured impact, so the row's presence is not left to guesswork:**
+
+| Feature set | As published (155 rows) | Row removed (154 rows) |
+|---|---|---|
+| Fundamentals | IC −0.0655, p 0.522 | IC −0.0631, p 0.592 |
+| Disclosure | IC +0.0912, p 0.343 | IC +0.0900, p 0.328 |
+| Combined | IC +0.0085, p 0.950 | IC +0.0110, p 0.915 |
+
+Every number in the ablation below, and every conclusion drawn from it, holds
+either way. One row in 155 has too little leverage to move a null result.
+
+Applying the now-live guard to the 128 rows whose prior year is also in the
+file flags **none** of them. The 27 FY2019 rows cannot be checked this way —
+their FY2018 baselines are not rows — so AT&T is the one confirmed case rather
+than provably the only one.
+
 ### Ablation
 
 | Feature set | Folds | n test | Mean IC | Std IC | Mean AUC | RMSE vs constant |
