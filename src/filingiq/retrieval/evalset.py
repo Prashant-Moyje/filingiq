@@ -176,7 +176,27 @@ QUALITATIVE_TEMPLATES = [
 
 # A label set this large means the query is trivially satisfiable and will
 # flatter the metrics. Flagged in the build report rather than silently kept.
+#
+# It WAS silently kept. This constant was defined and read by nothing, so the
+# flag it describes never existed. EVALUATION.md section 3 reports a maximum
+# label set of 70 -- well past this threshold and never flagged. Same shape as
+# FM-022, found by the same check: a constant whose only occurrence in the
+# repository is its own definition.
 LABEL_SET_WARN_THRESHOLD = 40
+
+
+def oversized_label_sets(queries, threshold: int = LABEL_SET_WARN_THRESHOLD
+                         ) -> list[tuple[str, int]]:
+    """Queries whose label set is large enough to flatter the metrics.
+
+    Recall@k is bounded above by k / |relevant|, so a query with 70 labels
+    cannot exceed 0.071 at k=5 however good retrieval is, while hit@k becomes
+    near-certain for the same reason. Such a query measures its label set
+    rather than the retriever. See FM-008.
+    """
+    return sorted(((q.query_id, len(q.relevant_chunks)) for q in queries
+                   if len(q.relevant_chunks) > threshold),
+                  key=lambda kv: -kv[1])
 
 
 def build_qualitative_queries(con) -> list[EvalQuery]:

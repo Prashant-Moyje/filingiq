@@ -42,18 +42,6 @@ def _family(model_name: str) -> str:
     return "gte"
 
 
-@dataclass
-class EmbeddingStats:
-    model: str
-    dim: int
-    n_embedded: int
-    seconds: float
-
-    @property
-    def per_second(self) -> float:
-        return self.n_embedded / max(self.seconds, 1e-9)
-
-
 class Embedder:
     def __init__(self, model_name: str | None = None, device: str | None = None,
                  batch_size: int = 32):

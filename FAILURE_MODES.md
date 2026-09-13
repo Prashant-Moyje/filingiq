@@ -896,3 +896,58 @@ the detector -- passing the handler a hand-built state proves only that the
 handler works on states nothing produces. The tell here was available without
 running anything: two module-level constants that `grep` finds at exactly one
 site each, their own definition.
+
+---
+
+## FM-023: Six more definitions that nothing read
+
+**Symptom.** None, again. Found by running the check FM-022 suggested rather
+than by anything breaking: parse every file, count real loads, report any
+module-level constant whose only occurrence in the repository is its own
+definition.
+
+**What it found.**
+
+| Definition | Claimed | Actually |
+|---|---|---|
+| `LABEL_SET_WARN_THRESHOLD = 40` | "flagged in the build report rather than silently kept" | silently kept |
+| `FeatureConfig.winsorize = 0.01` | "clip extreme returns before modelling" | returns never clipped |
+| `Settings.groq_api_key` | the API key | router calls `os.getenv` directly, three times |
+| `Settings.qdrant_url` | the vector store endpoint | store runs `QdrantClient(path=...)`, no URL dialled |
+| `EmbeddingStats` | embedding throughput | never constructed |
+| `AnalysisState.next_step` | supervisor routing | routing is conditional edges; nothing writes it |
+
+The first two had consequences in the report. `LABEL_SET_WARN_THRESHOLD` is the
+guard written in response to FM-008 -- and EVALUATION.md section 3 records a
+maximum label set of **70** against a threshold of **40**, never flagged, for as
+long as the file has existed. `winsorize` meant section 7's model has been
+fitted on unclipped returns throughout while the config said otherwise.
+
+**Blast radius, measured.** Clipping `excess_return` at the 1st/99th percentile
+touches 4 of 155 rows and moves disclosure IC from +0.0912 to +0.0883
+(p 0.343 -> 0.388). No conclusion changes.
+
+**Fix.** `LABEL_SET_WARN_THRESHOLD` wired into the build report it was always
+described as feeding, with the recall@5 cap printed per offending query. The
+other five removed, each replaced by a NOTE saying what is deliberately absent
+and why -- a reader who wonders "shouldn't there be a winsorize setting?"
+should find the answer, not the silence that let it drift.
+
+`winsorize` was removed rather than implemented. Switching on a preprocessing
+step retrospectively would change every published number in section 7, and the
+feature store would then disagree with the code that built it. The absence is
+now stated: **this pipeline does not winsorize.**
+
+**Fix, the part that matters.** `tests/test_no_disconnected_code.py` runs the
+check on every commit. A constant defined and read by nothing fails the suite
+with its file and line, and the only way past is to wire it up, delete it, or
+name it in `ALLOWED` with a reason -- which puts the exception in the diff
+where someone has to defend it.
+
+**Lesson.** Three separate failure modes now (FM-019, FM-022, this) have had
+the same shape: correct code, never connected, green tests, because the tests
+entered downstream of the gap. Wrong logic gets caught by the assertion that
+covers it. Absent wiring is caught by nothing, because there is no behaviour to
+assert against -- the absence is invisible from every direction except the
+definition site. That asymmetry is worth a standing check rather than
+vigilance.
