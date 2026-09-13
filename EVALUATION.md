@@ -258,11 +258,40 @@ not the question's.
 
 ## 6. Hallucination rate (Week 5)
 
-| Configuration | Unsupported numeric claims / memo |
-|---|---|
-| No verification | *pending* |
-| + XBRL cross-check | *pending* |
-| + citation enforcement | *pending* |
+Harness: `scripts/11_eval_hallucination.py`. Measurement logic is tested
+offline (`tests/test_hallucination_eval.py`, 17 tests); the numbers below
+require an API key and a built corpus.
+
+    python scripts/11_eval_hallucination.py            # all three configs
+
+| Configuration | Unsupported claims / memo (generated) | (shown to reader) |
+|---|---|---|
+| No verification — bare prompt, no gate | *pending* | *pending* |
+| + XBRL cross-check — bare prompt, gate on | *pending* | *pending* |
+| + citation enforcement — full prompt, gate on | *pending* | *pending* |
+
+**Two columns, because one would be misleading.** Measured on what a reader
+receives, rows 2 and 3 are 0.000 *by construction* — the gate deletes the
+sentence containing an unsupported figure, so of course none survives. That
+column demonstrates the gate is wired up, nothing more. The informative
+quantity is how many bad claims the model **generated** before the gate saw
+them, which is what separates "the instruction stopped it inventing figures"
+from "the gate caught what the instruction missed".
+
+**The baseline strips the deterrent.** The shipped `MEMO_SYSTEM` ends with
+*"Every number you write will be checked automatically against SEC XBRL
+data … an invented number costs you the sentence containing it."* That clause
+is itself a mitigation, so a "no verification" row that kept it would measure
+the gate's absence while the prompt quietly did the gate's job, and would
+understate the raw rate. Configuration 1 uses `MEMO_SYSTEM_BARE`: the same
+prompt with every reference to checking removed and every other rule intact,
+so exactly one variable changes between rows. The user prompt is shared across
+all three via `nodes.build_memo_prompt`.
+
+**Scope.** Numeric claims only. "Management's tone has become more cautious" is
+not checkable by arithmetic and is counted in neither direction — a memo can
+score 0.000 here and still mislead in prose. This section should not be read as
+a general hallucination rate.
 
 ## 7. Downstream model (Week 6) — a null result
 

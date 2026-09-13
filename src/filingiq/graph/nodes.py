@@ -138,15 +138,18 @@ Excerpts from newly-added risk factors:
 Write the analyst note."""
 
 
-def memo_node(state: AnalysisState, router) -> dict:
-    budget = state.get("budget")
-    if budget:
-        blocked = budget.exceeded()
-        if blocked:
-            return {"warnings": [f"memo skipped: {blocked}"],
-                    **_t(state, f"memo SKIPPED ({blocked})")}
+def build_memo_prompt(state: AnalysisState) -> str:
+    """Render the memo USER prompt from state.
 
+    Extracted so the hallucination ablation (scripts/11) can hold the user
+    prompt fixed while varying only the SYSTEM prompt. If the ablation rebuilt
+    this itself the two would drift, and the comparison would quietly stop
+    being like-for-like -- the configurations would differ in the evidence
+    supplied as well as the instruction given, and the result would attribute
+    to the instruction whatever the evidence had actually caused.
+    """
     figures = state.get("figures", {})
+
     def fmt(v: float) -> str:
         if abs(v) >= 1e9:
             return f"{v/1e9:,.1f} billion (exactly {v:,.0f})"
@@ -160,9 +163,7 @@ def memo_node(state: AnalysisState, router) -> dict:
     excerpts = "\n\n".join(f"- {r['text'][:600]}"
                            for r in state.get("new_risks", [])[:4]) or "  (none)"
 
-    resp = router.complete(
-        MEMO_SYSTEM,
-        MEMO_USER.format(
+    return MEMO_USER.format(
             ticker=state["ticker"], fiscal_year=state["fiscal_year"],
             prior_year=state.get("prior_year", state["fiscal_year"] - 1),
             figures=fig_lines, n_new=diff.get("new", 0),
@@ -175,8 +176,26 @@ def memo_node(state: AnalysisState, router) -> dict:
                            "describe this as change; say the baseline is "
                            "unavailable)"),
             themes=", ".join(state.get("risk_themes", {})) or "none",
-            new_risk_text=excerpts),
-        json_mode=False, max_tokens=1500)
+            new_risk_text=excerpts)
+
+
+def memo_node(state: AnalysisState, router,
+              system_prompt: str | None = None) -> dict:
+    """Draft the memo. `system_prompt` defaults to the shipped MEMO_SYSTEM.
+
+    It is a parameter only so the hallucination ablation can substitute a
+    stripped variant; production callers should never pass it.
+    """
+    budget = state.get("budget")
+    if budget:
+        blocked = budget.exceeded()
+        if blocked:
+            return {"warnings": [f"memo skipped: {blocked}"],
+                    **_t(state, f"memo SKIPPED ({blocked})")}
+
+    resp = router.complete(system_prompt or MEMO_SYSTEM,
+                           build_memo_prompt(state),
+                           json_mode=False, max_tokens=1500)
 
     if budget:
         budget.calls_used += 1

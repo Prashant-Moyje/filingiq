@@ -9,7 +9,7 @@ a **measured number, not a claim**.
 ```
 Extraction + retrieval   16 filings · 4 companies · 6,054 chunks
 Disclosure-drift study  216 filings · 28 companies · FY2018–2024 · 65,000 chunks
-                        215 tests · 21 documented failure modes
+                        232 tests · 21 documented failure modes
 ```
 
 **Two corpora, and the difference matters.** The extraction and retrieval
@@ -130,7 +130,7 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 cp .env.example .env        # set SEC_USER_AGENT to your name + email (required)
 
-pytest -q                   # 215 tests, no network or API key needed
+pytest -q                   # 232 tests, no network or API key needed
 
 python scripts/01_ingest.py         # EDGAR + XBRL ground truth
 python scripts/03_parse.py          # sections
