@@ -40,7 +40,10 @@ class Settings:
     llm_provider: str = os.getenv("LLM_PROVIDER", "ollama")  # ollama | groq
     ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
     groq_model: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-    groq_api_key: str = os.getenv("GROQ_API_KEY", "")
+    # NOTE: no `groq_api_key` here. One existed and was read by nothing --
+    # llm/router.py calls os.getenv("GROQ_API_KEY") directly at each use, so
+    # the setting was a second, unused copy of the same value that could
+    # silently disagree with the one actually sent.
 
     # Consumed by retrieval/embedder.py. Every number in EVALUATION.md section 4
     # was produced with this model; overriding it invalidates them.
@@ -51,7 +54,9 @@ class Settings:
     # defaults to 'fast'. A config value the code never loads is worse than no
     # config value: it documents a system that does not exist.
 
-    qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
+    # NOTE: no `qdrant_url`. retrieval/store.py runs Qdrant in local
+    # library mode -- QdrantClient(path=...) -- so no URL is ever dialled.
+    # The setting described a server deployment this project does not use.
 
     def ensure_dirs(self) -> None:
         self.raw_dir.mkdir(parents=True, exist_ok=True)

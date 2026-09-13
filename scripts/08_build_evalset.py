@@ -53,6 +53,22 @@ def main() -> int:
         counts.sort()
         print(f"    {kind:<12} min={counts[0]}  median={counts[len(counts)//2]}  "
               f"max={counts[-1]}")
+    # FM-008: a label set this large makes hit@k near-certain and caps
+    # recall@k at k/|relevant|, so the query measures its labels rather than
+    # the retriever. The threshold existed as a constant for weeks and was
+    # read by nothing; this is the report it was always described as feeding.
+    oversized = evalset.oversized_label_sets(queries)
+    if oversized:
+        print(f"\n  WARNING -- {len(oversized)} queries exceed "
+              f"{evalset.LABEL_SET_WARN_THRESHOLD} relevant chunks:")
+        for qid, n in oversized[:10]:
+            print(f"    {qid:<44} {n} labels  (recall@5 capped at "
+                  f"{5 / n:.3f})")
+        if len(oversized) > 10:
+            print(f"    ... and {len(oversized) - 10} more")
+        print("  These flatter hit@k. Report hit@k and MRR, not recall@k, "
+              "or tighten the label rule.")
+
     print("\n  By company:", dict(Counter(q.ticker for q in queries)))
     print("""
   SANITY CHECK -- read a few before trusting the numbers:

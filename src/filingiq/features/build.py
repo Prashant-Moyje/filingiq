@@ -41,7 +41,18 @@ THEME_COLUMNS = [
 @dataclass
 class FeatureConfig:
     forward_days: int = 90          # horizon for the target
-    winsorize: float = 0.01         # clip extreme returns before modelling
+    # NOTE: there is deliberately no `winsorize` setting. One existed,
+    # documented as "clip extreme returns before modelling", and was read by
+    # nothing -- returns reaching the model were never clipped. Rather than
+    # switch a preprocessing step on retrospectively, which would change every
+    # published number in EVALUATION.md section 7, the field is removed and the
+    # absence stated plainly: THIS PIPELINE DOES NOT WINSORIZE.
+    #
+    # Measured, so the choice is informed rather than assumed. Clipping
+    # excess_return at the 1st/99th percentile touches 4 of 155 rows and moves
+    # disclosure IC from +0.0912 to +0.0883 (p 0.343 -> 0.388); no conclusion
+    # changes. To enable it, add it here AND regenerate the feature store, so
+    # that code and data agree.
 
 
 def build_disclosure_features(analysis_rows: list[dict]) -> pd.DataFrame:

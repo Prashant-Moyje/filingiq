@@ -70,4 +70,7 @@ class AnalysisState(TypedDict, total=False):
     errors: Annotated[list, _merge_lists]
     warnings: Annotated[list, _merge_lists]
     trace: Annotated[list, _merge_lists]
-    next_step: str
+    # NOTE: no `next_step`. One was declared and never read -- routing
+    # is done by build.should_write_memo via conditional edges, not by a
+    # field any node writes. A state key nothing sets or reads describes
+    # a control flow the graph does not have.
