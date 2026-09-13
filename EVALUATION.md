@@ -389,6 +389,78 @@ is uninformative — only that *these* features, on *this* sample (155 rows,
   Small caps receive far less analyst attention.
 - **Target.** Excess return is noisy. Realised volatility, or the probability of
   a large adverse move, would be easier to predict and arguably more useful.
+- **Measurement error in the predictor itself.** `drift_score` is not a
+  validated measure of disclosure change — see below. A feature with
+  substantial noise of its own attenuates any real correlation toward zero, so
+  this null is consistent with both "no effect exists" and "the effect exists
+  and the feature is too noisy to see it". The other four reasons above are
+  about the study design; this one is about whether the input means what its
+  name says.
+
+### The predictor is unvalidated, and that is the weakest link
+
+`drift_score` diffs **chunks**, not risk factors. Chunk boundaries fall at
+cumulative token counts, so inserting one risk factor near the front of Item 1A
+re-cuts everything after it. Text the company did not touch then lands in
+differently-bounded chunks, and cosine similarity cannot distinguish that from
+a rewrite.
+
+Measured on a synthetic 40-factor Item 1A (40 factors → 20 chunks), inserting a
+single new risk factor displaces this share of chunk boundaries:
+
+| Insertion point | Chunks with identical text | Displaced |
+|---|---|---|
+| First | 0 / 20 | **100%** |
+| 1/4 in | 4 / 20 | 80% |
+| Middle | 9 / 20 | 55% |
+| 3/4 in | 14 / 20 | 30% |
+| Last | 19 / 20 | 5% |
+
+One added factor, and between 5% and 100% of the section is no longer
+byte-identical — determined by *where* the company inserted it, not *how much*
+it changed. The published feature store has a median `drift_score` of 0.311.
+
+**But displacement is not drift, and the difference was measured.** A shifted
+chunk still overlaps its neighbour heavily, so the embedder may score it above
+the 0.95 "unchanged" threshold regardless. Running the real path —
+`bge-small-en-v1.5` plus `diff_sections` — over 40 topically distinct risk
+factors with exactly one factor added:
+
+| Insertion point | Reported drift | Spurious component |
+|---|---|---|
+| First | 0.143 | 0% |
+| 1/4 in | 0.000 | 0% |
+| Middle | 0.143 | 0% |
+| 3/4 in | 0.286 | **14.3%** |
+| Last | 0.000 | 0% |
+
+*Spurious* = chunks scored new-or-modified beyond the single chunk that
+legitimately changed.
+
+**The embedder largely absorbs the boundary shift.** Up to 100% of chunks stop
+being byte-identical, yet in four of five positions nothing false is reported.
+Mean spurious contribution is roughly 3%, against a published median
+`drift_score` of 0.311. Chunk-boundary contamination is real but is **not** the
+dominant component of the drift signal, and the earlier worry that it might be
+does not survive measurement.
+
+Caveats that keep this from being conclusive: the section is synthetic, one
+corpus shape, and coarse — 40 factors pack into 7 chunks, so a single
+misclassification moves drift by 14 percentage points. Real filings in this
+corpus carry 17–278 risk factors. A first attempt using 40 near-identical
+factors reported 0% spurious everywhere, which was an artifact of every chunk
+matching every other chunk; that run was discarded rather than reported.
+
+**What remains genuinely unvalidated** is the thresholds. 0.95 and 0.80 are
+asserted, not calibrated: there is no labelled set of "this risk factor was
+rewritten / was not", so no precision-recall figure for the diff exists
+anywhere in this report. That, not boundary displacement, is the open question.
+
+**A design change that would remove the ambiguity:** segment Item 1A into risk
+factors (delimited by bold or capitalised headings in most filings) and diff
+factor-to-factor, so alignment depends on content rather than token arithmetic.
+On the evidence above this buys less than expected — it is a clarity
+improvement, not a correction of a large error.
 
 ### Why this section is in the report
 
