@@ -420,22 +420,47 @@ One added factor, and between 5% and 100% of the section is no longer
 byte-identical — determined by *where* the company inserted it, not *how much*
 it changed. The published feature store has a median `drift_score` of 0.311.
 
-**What this does and does not establish.** Displacement is a necessary
-condition for spurious drift, not a sufficient one: a shifted chunk still
-overlaps its neighbour heavily, so the embedder may well score it above the
-0.95 "unchanged" threshold. The honest statement is that the upper bound on
-contamination is large and the actual figure is **unmeasured**. Settling it
-requires running the real embedder over displaced chunk pairs and reporting the
-distribution of cosine against the 0.95/0.80 thresholds.
+**But displacement is not drift, and the difference was measured.** A shifted
+chunk still overlaps its neighbour heavily, so the embedder may score it above
+the 0.95 "unchanged" threshold regardless. Running the real path —
+`bge-small-en-v1.5` plus `diff_sections` — over 40 topically distinct risk
+factors with exactly one factor added:
 
-Those two thresholds are themselves asserted rather than calibrated. There is
-no labelled set of "this risk factor was rewritten / was not", so no
-precision-recall figure for the diff exists anywhere in this report.
+| Insertion point | Reported drift | Spurious component |
+|---|---|---|
+| First | 0.143 | 0% |
+| 1/4 in | 0.000 | 0% |
+| Middle | 0.143 | 0% |
+| 3/4 in | 0.286 | **14.3%** |
+| Last | 0.000 | 0% |
 
-**The design fix, if this matters to you:** segment Item 1A into risk factors
-(they are delimited by bold or capitalised headings in most filings) and diff
-factor-to-factor. Alignment then depends on content rather than on token
-arithmetic, and inserting a factor changes exactly one unit.
+*Spurious* = chunks scored new-or-modified beyond the single chunk that
+legitimately changed.
+
+**The embedder largely absorbs the boundary shift.** Up to 100% of chunks stop
+being byte-identical, yet in four of five positions nothing false is reported.
+Mean spurious contribution is roughly 3%, against a published median
+`drift_score` of 0.311. Chunk-boundary contamination is real but is **not** the
+dominant component of the drift signal, and the earlier worry that it might be
+does not survive measurement.
+
+Caveats that keep this from being conclusive: the section is synthetic, one
+corpus shape, and coarse — 40 factors pack into 7 chunks, so a single
+misclassification moves drift by 14 percentage points. Real filings in this
+corpus carry 17–278 risk factors. A first attempt using 40 near-identical
+factors reported 0% spurious everywhere, which was an artifact of every chunk
+matching every other chunk; that run was discarded rather than reported.
+
+**What remains genuinely unvalidated** is the thresholds. 0.95 and 0.80 are
+asserted, not calibrated: there is no labelled set of "this risk factor was
+rewritten / was not", so no precision-recall figure for the diff exists
+anywhere in this report. That, not boundary displacement, is the open question.
+
+**A design change that would remove the ambiguity:** segment Item 1A into risk
+factors (delimited by bold or capitalised headings in most filings) and diff
+factor-to-factor, so alignment depends on content rather than token arithmetic.
+On the evidence above this buys less than expected — it is a clarity
+improvement, not a correction of a large error.
 
 ### Why this section is in the report
 

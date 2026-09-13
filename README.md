@@ -180,14 +180,12 @@ Stated here rather than left to be discovered:
   feature store, not silently scored as zero change — see FM-019.
 - **155 modelling rows over 6 years** cannot resolve an IC in the 0.02–0.05
   range where a real signal would live. The null is honest but underpowered.
-- **`drift_score` is not a validated measure of disclosure change.** It
-  diffs chunks rather than risk factors, and chunk boundaries move when
-  text is inserted: adding one risk factor to a 40-factor Item 1A leaves
-  between 5% and 100% of the section no longer byte-identical, depending
-  only on *where* it was added. The 0.95/0.80 similarity thresholds are
-  asserted, not calibrated against labels, and no precision-recall figure
-  for the diff exists. EVALUATION.md §7 quantifies this and names the fix
-  (segment Item 1A into risk factors and diff factor-to-factor).
+- **`drift_score`'s similarity thresholds are uncalibrated.** 0.95 and 0.80
+  are asserted, not fitted: there is no labelled set of "this risk factor was
+  rewritten / was not", so no precision-recall figure for the diff exists.
+  Chunk-boundary sensitivity was a related worry and was measured — adding one
+  risk factor re-cuts up to 100% of a section, but the embedder absorbs it and
+  the spurious contribution averages ~3%. EVALUATION.md §7 has both results.
 - **Qualitative retrieval labels are a keyword proxy**, not human relevance
   judgments.
 - **Large-cap US issuers only** — the most efficiently priced segment, and the
