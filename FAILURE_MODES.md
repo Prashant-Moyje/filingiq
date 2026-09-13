@@ -772,14 +772,48 @@ than the instance that happened to surface.
 
 ---
 
-## FM-021: (yours goes here)
+## FM-021: The step that guards the guards was inert on half the matrix
 
-Candidates you will almost certainly hit:
-- Banks (JPM, GS) missing most metrics — different us-gaap tag families
-- Retailers with 52/53-week fiscal calendars shifting period ends
-- Tables split across page boundaries during parsing (Week 2)
-- Item 7 sectioniser tripping on the table-of-contents entry rather than the
-  actual section heading (Week 2)
-- Filings that exceed context window (Week 4)
-- Retrieval returning the risk-factor *summary* instead of the detailed clause (Week 3)
+**Symptom.** Both Windows jobs failed while both Ubuntu jobs passed, on a
+commit that touched no Windows-specific behaviour:
 
+    ERROR ..\..\..\System Volume Information - PermissionError:
+    [WinError 5] Access is denied: 'D:\System Volume Information'
+    The term 'tests/test_analysis.py::test_empty_current_year_gives_undefined_drift'
+    is not recognized as a name of a cmdlet, function, script file, or
+    executable program.
+
+**Root cause.** `windows-latest` defaults to **pwsh**, and PowerShell does not
+treat `\` as a line continuation -- backtick does. The guard step was written
+with shell line continuations:
+
+    run: |
+      pytest -q         tests/test_analysis.py::...         tests/test_models.py::...
+
+Under pwsh that is not one command. `pytest -q \` runs pytest with a literal
+backslash as its target, so pytest collects from the DRIVE ROOT and dies on
+`D:\System Volume Information`. Each following line then executes as its own
+command and is not recognised.
+
+**Why it went unnoticed.** The `Run tests` step is a single line, so it worked
+everywhere -- the full suite passed on Windows the whole time (214 passed).
+Only the multi-line step broke, and it broke at the shell level rather than in
+any assertion, so no test ever reported anything.
+
+**What was actually lost.** This is the step whose entire purpose is to prevent
+the fabricated-observation guards from being weakened. On Windows it never ran
+a single one of them. A verification layer reporting failure for a reason
+unrelated to what it verifies is worse than no layer: the red is attributed to
+"flaky Windows CI" and the guards quietly cover half the matrix.
+
+**Fix.** `shell: bash` on that step. GitHub's Windows runners ship bash, and
+pinning it makes the continuation syntax mean what it is written to mean.
+
+**Lesson.** FM-020 said default encodings differ by platform and do not appear
+in test output until someone else runs your code. This is the same lesson one
+layer up: the *shell* differs by platform too, and a harness bug cannot be
+caught by the tests the harness runs. Note also which way this failed -- it
+failed LOUDLY, and was still ignored, because a red Windows job on a project
+whose author develops on Windows reads as environmental noise. FM-019 warns
+about failures that degrade to plausible values; this one degraded to a
+plausible *excuse*.

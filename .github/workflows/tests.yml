@@ -48,6 +48,17 @@ jobs:
         # fix covered extract_group only, leaving --no-group free to read a
         # Parent-Company-Only table as consolidated. One path passing is not
         # evidence the other does.
+        #
+        # shell: bash is REQUIRED, not stylistic. windows-latest defaults to
+        # pwsh, where "\" is not a line continuation (backtick is). Under pwsh
+        # `pytest -q \` passes a literal backslash to pytest, which collects
+        # from the drive root and dies on D:/System Volume Information, and
+        # every following line runs as its own command. This step was therefore
+        # failing on BOTH Windows jobs -- the step whose entire purpose is to
+        # stop these guards being weakened was itself inert on half the matrix.
+        # Same lesson as FM-020, one layer up: the bug was in the harness, not
+        # in any tested behaviour.
+        shell: bash
         run: |
           pytest -q \
             tests/test_analysis.py::test_empty_current_year_gives_undefined_drift \
