@@ -9,7 +9,7 @@ a **measured number, not a claim**.
 ```
 Extraction + retrieval   16 filings · 4 companies · 6,054 chunks
 Disclosure-drift study  216 filings · 28 companies · FY2018–2024 · 65,000 chunks
-                        243 tests · 22 documented failure modes
+                        260 tests · 22 documented failure modes
 ```
 
 **Two corpora, and the difference matters.** The extraction and retrieval
@@ -130,7 +130,7 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 cp .env.example .env        # set SEC_USER_AGENT to your name + email (required)
 
-pytest -q                   # 243 tests, no network or API key needed
+pytest -q                   # 260 tests, no network or API key needed
 
 python scripts/01_ingest.py         # EDGAR + XBRL ground truth
 python scripts/03_parse.py          # sections
@@ -180,12 +180,15 @@ Stated here rather than left to be discovered:
   feature store, not silently scored as zero change — see FM-019.
 - **155 modelling rows over 6 years** cannot resolve an IC in the 0.02–0.05
   range where a real signal would live. The null is honest but underpowered.
-- **`drift_score`'s similarity thresholds are uncalibrated.** 0.95 and 0.80
-  are asserted, not fitted: there is no labelled set of "this risk factor was
-  rewritten / was not", so no precision-recall figure for the diff exists.
-  Chunk-boundary sensitivity was a related worry and was measured — adding one
-  risk factor re-cuts up to 100% of a section, but the embedder absorbs it and
-  the spurious contribution averages ~3%. EVALUATION.md §7 has both results.
+- **`drift_score`'s similarity thresholds sit on a class edge.** Calibrated
+  against a labelled set (`scripts/16_calibrate_diff.py`), the shipped 0.95/0.80
+  score 90%: 0.95 is 0.0007 *above* the lowest true "unchanged" example, so a
+  factor carried forward with only figures refreshed is counted as a rewrite,
+  inflating drift. Max-margin placement is 0.89/0.77. The constants are
+  deliberately unchanged — 10 constructed pairs cannot justify replacing a
+  shipped value and invalidating every published drift score. Chunk-boundary
+  sensitivity was a related worry and measured small (~3%). EVALUATION.md §7
+  has both results.
 - **Qualitative retrieval labels are a keyword proxy**, not human relevance
   judgments.
 - **Large-cap US issuers only** — the most efficiently priced segment, and the
