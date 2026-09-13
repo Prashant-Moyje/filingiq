@@ -389,6 +389,53 @@ is uninformative — only that *these* features, on *this* sample (155 rows,
   Small caps receive far less analyst attention.
 - **Target.** Excess return is noisy. Realised volatility, or the probability of
   a large adverse move, would be easier to predict and arguably more useful.
+- **Measurement error in the predictor itself.** `drift_score` is not a
+  validated measure of disclosure change — see below. A feature with
+  substantial noise of its own attenuates any real correlation toward zero, so
+  this null is consistent with both "no effect exists" and "the effect exists
+  and the feature is too noisy to see it". The other four reasons above are
+  about the study design; this one is about whether the input means what its
+  name says.
+
+### The predictor is unvalidated, and that is the weakest link
+
+`drift_score` diffs **chunks**, not risk factors. Chunk boundaries fall at
+cumulative token counts, so inserting one risk factor near the front of Item 1A
+re-cuts everything after it. Text the company did not touch then lands in
+differently-bounded chunks, and cosine similarity cannot distinguish that from
+a rewrite.
+
+Measured on a synthetic 40-factor Item 1A (40 factors → 20 chunks), inserting a
+single new risk factor displaces this share of chunk boundaries:
+
+| Insertion point | Chunks with identical text | Displaced |
+|---|---|---|
+| First | 0 / 20 | **100%** |
+| 1/4 in | 4 / 20 | 80% |
+| Middle | 9 / 20 | 55% |
+| 3/4 in | 14 / 20 | 30% |
+| Last | 19 / 20 | 5% |
+
+One added factor, and between 5% and 100% of the section is no longer
+byte-identical — determined by *where* the company inserted it, not *how much*
+it changed. The published feature store has a median `drift_score` of 0.311.
+
+**What this does and does not establish.** Displacement is a necessary
+condition for spurious drift, not a sufficient one: a shifted chunk still
+overlaps its neighbour heavily, so the embedder may well score it above the
+0.95 "unchanged" threshold. The honest statement is that the upper bound on
+contamination is large and the actual figure is **unmeasured**. Settling it
+requires running the real embedder over displaced chunk pairs and reporting the
+distribution of cosine against the 0.95/0.80 thresholds.
+
+Those two thresholds are themselves asserted rather than calibrated. There is
+no labelled set of "this risk factor was rewritten / was not", so no
+precision-recall figure for the diff exists anywhere in this report.
+
+**The design fix, if this matters to you:** segment Item 1A into risk factors
+(they are delimited by bold or capitalised headings in most filings) and diff
+factor-to-factor. Alignment then depends on content rather than on token
+arithmetic, and inserting a factor changes exactly one unit.
 
 ### Why this section is in the report
 

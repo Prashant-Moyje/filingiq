@@ -98,12 +98,6 @@ class DiffResult:
     # Set when the two years differ so wildly in size that the comparison is
     # measuring a parsing artifact rather than a disclosure change.
     size_mismatch: bool = False
-    # False when the CURRENT year has no Item 1A chunks -- a parser failure,
-    # not a disclosure event. Without this the diff reports "0 new, 0 modified,
-    # 102 removed, drift 0.0", which reads as a company deleting its entire
-    # risk section. That row then becomes the strongest signal in the feature
-    # store. Gating on the prior year alone (has_baseline) was not enough.
-    has_current: bool = True
 
     def by_status(self, status: str) -> list[DiffEntry]:
         return [e for e in self.entries if e.status == status]
@@ -217,4 +211,33 @@ def diff_years(con, ticker: str, current_year: int, prior_year: int,
     entries = diff_sections(current, prior, embedder)
     return DiffResult(ticker=ticker, current_year=current_year,
                       prior_year=prior_year, entries=entries,
-                      has_baseline=bool(prior), has_current=bool(current))
+                      has_baseline=bool(prior), has_current=bool(current),
+                      size_mismatch=is_size_mismatch(current, prior))
+
+
+def is_size_mismatch(current: list[ChunkRef], prior: list[ChunkRef]) -> bool:
+    """Are these two sections too differently sized to be compared?
+
+    MIN_CHUNKS_FOR_DIFF and MIN_SIZE_RATIO were defined, `size_mismatch` was
+    declared, `summary()` honoured it and `features/build.py` dropped rows
+    carrying it -- but NOTHING EVER SET IT. The flag defaulted to False on
+    every DiffResult that diff_years built, so the entire branch was dead code
+    in production and only the hand-constructed DiffResult(size_mismatch=True)
+    in the tests ever exercised it.
+
+    FM-019's table claims "Sections differ >3x in size" yields None. It did
+    not. AT&T FY2019 -- the case FM-019 cites by name, 33 chunks against a
+    5-chunk FY2018 -- still scored drift_score = 1.0 and is the single highest
+    drift value in the 155-row feature store.
+
+    A guard whose condition is never computed is indistinguishable from no
+    guard, and it is worse than none: the constants, the flag, the branch and
+    the passing tests all read as protection.
+    """
+    # Empty sections are has_current / has_baseline's job, not this one.
+    if not current or not prior:
+        return False
+    n_cur, n_pri = len(current), len(prior)
+    if n_cur < MIN_CHUNKS_FOR_DIFF or n_pri < MIN_CHUNKS_FOR_DIFF:
+        return True
+    return min(n_cur, n_pri) / max(n_cur, n_pri) < MIN_SIZE_RATIO

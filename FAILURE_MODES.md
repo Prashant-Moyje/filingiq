@@ -817,3 +817,82 @@ failed LOUDLY, and was still ignored, because a red Windows job on a project
 whose author develops on Windows reads as environmental noise. FM-019 warns
 about failures that degrade to plausible values; this one degraded to a
 plausible *excuse*.
+
+---
+
+## FM-022: A guard whose condition was never computed
+
+**Symptom.** None. That is the entire problem. `data/features.csv` carries
+
+    T (AT&T) FY2019: 33 risk factors, 21 new + 12 modified, drift_score = 1.0000
+
+the single highest drift value in all 155 rows, and FM-019 names this exact
+filing as the artifact it fixed.
+
+**Root cause.** The guard was built and then never connected.
+
+| Piece | State |
+|---|---|
+| `MIN_CHUNKS_FOR_DIFF = 5` | defined, **never read** |
+| `MIN_SIZE_RATIO = 0.35` | defined, **never read** |
+| `DiffResult.size_mismatch` | declared, defaulted `False` |
+| `summary()` returning `None` on it | correct |
+| `features/build.py` dropping such rows | correct |
+| anything that **sets** the flag | **did not exist** |
+
+`diff_years()` constructed every `DiffResult` with `has_baseline` and
+`has_current` and simply never passed `size_mismatch`, so it was `False` on
+every result the pipeline ever produced. The branch in `summary()` was
+unreachable in production.
+
+**Why the tests did not catch it.** `test_size_mismatch_gives_undefined_drift`
+built the object by hand:
+
+    DiffResult("T", 2019, 2018, [], has_baseline=True,
+               has_current=True, size_mismatch=True)
+
+It asserted the CONSEQUENCE of the flag. Nothing asserted the flag is ever
+raised. Four tests referenced `size_mismatch`; all four supplied it themselves.
+A test that hands the system the state it is meant to detect has verified the
+handler and not the detector.
+
+**Why FAILURE_MODES.md did not catch it either.** FM-019's own table says:
+
+| Condition | Would have produced | Now |
+|---|---|---|
+| Sections differ >3x in size | a meaningless number | `None` |
+
+That row was false from the day it was written. FM-019 records "the
+`size_mismatch` branch never being checked -- so mismatches were flagged and
+then ignored" as one of two defects found while writing the fix. The branch
+was made to honour the flag; the flag was never made to be raised. The
+write-up documented the intent and the code implemented two-thirds of it.
+
+**Blast radius.** Bounded, and measured rather than assumed. Re-running the
+section 7 ablation with the contaminated row removed:
+
+| Feature set | As published | T FY2019 dropped |
+|---|---|---|
+| Fundamentals | IC −0.0655, p 0.522 | IC −0.0631, p 0.592 |
+| Disclosure | IC +0.0912, p 0.343 | IC +0.0900, p 0.328 |
+| Combined | IC +0.0085, p 0.950 | IC +0.0110, p 0.915 |
+
+Every conclusion stands. One row in 155 is not enough leverage to move a null
+result, and it is worth saying so plainly rather than implying the published
+numbers were wrong.
+
+**Fix.** `is_size_mismatch()`, called by `diff_years`, reading the constants
+that already existed. `tests/test_diff_guards.py` exercises `diff_years`
+against an in-memory DuckDB rather than constructing `DiffResult` directly --
+three of its tests fail against the old code. An AST test asserts `DiffResult`
+has no duplicate field declarations, which also caught `has_current` being
+declared twice (harmless at runtime, the same duplicated-declaration slip
+FM-019 found in `summary()`).
+
+**Lesson.** Asserting the consequence of a flag is not the same as asserting
+the flag is ever set, and the gap between those two is invisible in a green
+suite. When a guard has a detector and a handler, the test has to enter through
+the detector -- passing the handler a hand-built state proves only that the
+handler works on states nothing produces. The tell here was available without
+running anything: two module-level constants that `grep` finds at exactly one
+site each, their own definition.

@@ -9,7 +9,7 @@ a **measured number, not a claim**.
 ```
 Extraction + retrieval   16 filings · 4 companies · 6,054 chunks
 Disclosure-drift study  216 filings · 28 companies · FY2018–2024 · 65,000 chunks
-                        232 tests · 21 documented failure modes
+                        243 tests · 22 documented failure modes
 ```
 
 **Two corpora, and the difference matters.** The extraction and retrieval
@@ -130,7 +130,7 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 cp .env.example .env        # set SEC_USER_AGENT to your name + email (required)
 
-pytest -q                   # 232 tests, no network or API key needed
+pytest -q                   # 243 tests, no network or API key needed
 
 python scripts/01_ingest.py         # EDGAR + XBRL ground truth
 python scripts/03_parse.py          # sections
@@ -180,6 +180,14 @@ Stated here rather than left to be discovered:
   feature store, not silently scored as zero change — see FM-019.
 - **155 modelling rows over 6 years** cannot resolve an IC in the 0.02–0.05
   range where a real signal would live. The null is honest but underpowered.
+- **`drift_score` is not a validated measure of disclosure change.** It
+  diffs chunks rather than risk factors, and chunk boundaries move when
+  text is inserted: adding one risk factor to a 40-factor Item 1A leaves
+  between 5% and 100% of the section no longer byte-identical, depending
+  only on *where* it was added. The 0.95/0.80 similarity thresholds are
+  asserted, not calibrated against labels, and no precision-recall figure
+  for the diff exists. EVALUATION.md §7 quantifies this and names the fix
+  (segment Item 1A into risk factors and diff factor-to-factor).
 - **Qualitative retrieval labels are a keyword proxy**, not human relevance
   judgments.
 - **Large-cap US issuers only** — the most efficiently priced segment, and the
