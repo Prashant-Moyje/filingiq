@@ -951,3 +951,75 @@ covers it. Absent wiring is caught by nothing, because there is no behaviour to
 assert against -- the absence is invisible from every direction except the
 definition site. That asymmetry is worth a standing check rather than
 vigilance.
+
+---
+
+## FM-024: The hallucination gate could not read a minus sign
+
+**Symptom.** The first section 6 run reported 3 unsupported numeric claims
+across 499 -- a 0.6% hallucination rate. All three were the same claim, from
+the same filing:
+
+    JPM FY2024: "Operating cash flow was negative at $-42.0 billion."
+
+Ground truth: **-42,012,000,000**. The memo was correct to the rounding. The
+gate deleted the sentence as a fabrication.
+
+**Root cause.** `_NUMBER_RE` in claims.py had no sign handling whatsoever:
+
+    (?P<currency>[$EUR£]\s?)?
+    (?P<value>\d{1,3}(?:,\d{3})+(?:\.\d+)?|...)
+
+Nothing matched a leading minus, so the extractor produced `+42.0e9` for every
+way of writing the figure. Tested after the fact, all of these extracted as
+POSITIVE:
+
+| Written as | Extracted |
+|---|---|
+| `-42.0 billion` (ASCII hyphen) | +42.0e9 |
+| `‑42.0 billion` (U+2011) | +42.0e9 |
+| `−42.0 billion` (U+2212) | +42.0e9 |
+| `$(42.0) billion` (accounting) | +42.0 |
+| `negative $42.0 billion` | +42.0e9 |
+
+The gate then computed `|42.0e9 - (-42.0e9)| / 42.0e9 = 2.0`, far outside the
+1% tolerance, and struck the sentence.
+
+**Why it mattered more than one sentence.** Every memo describing a loss, a
+negative cash flow, a decline or an outflow would have that sentence removed.
+Banks and loss-making years are exactly where the disclosure is most worth
+reading, and exactly where the gate was silently destroying it. FM-017 is about
+output that looked verified when it was not; this is the mirror -- output that
+was correct, marked unverified -- and it is the more corrosive of the two,
+because a gate that deletes true sentences teaches readers to ignore the flags.
+
+**Why nothing caught it.** Every prior test of the gate used positive figures.
+`test_fabricated_figure_is_caught`, `test_claim_matches_at_any_scale`,
+`test_rounding_within_tolerance_is_supported` -- all positive. The negative
+case was not a rare branch, it was an ENTIRE HALF of the number line that no
+test visited. It surfaced only when a real model wrote about a real bank whose
+operating cash flow happened to be negative.
+
+**Fix.** Sign handling in `_NUMBER_RE`: the ASCII hyphen plus U+2010-U+2013 and
+U+2212, accepted on either side of the currency symbol, since both `-$42` and
+`$-42` occur. Accounting parentheses count only when BOTH brackets are present,
+so "(see note 3)" cannot flip a figure. A word-carried sign ("a loss of",
+"negative", "deficit of") is honoured when it sits immediately before the
+number, and cannot leak across a sentence boundary.
+
+Nine regression tests, including the JPM sentence verbatim, one asserting a
+GENUINE sign error is still caught -- the fix must not make the gate blind --
+and one asserting a negating word in a previous sentence does not flip a later
+figure.
+
+**Consequence for the report.** The measured hallucination rate was never above
+zero. The 0.6% in the first run was entirely the instrument, and section 6 now
+reports 0 of 499 with the rule-of-three upper bound rather than the artefact.
+
+**Lesson.** When a measurement finds a defect, check the instrument before
+believing it -- especially when the defect is rare, since a single event is
+more likely to be a measurement error than a real one at that rate. The tell
+here was that all three "hallucinations" were the same claim: a model inventing
+numbers does not invent the same number three times under three different
+prompts. Consistency across conditions is a signature of the apparatus, not of
+the subject.

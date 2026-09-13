@@ -9,7 +9,7 @@ a **measured number, not a claim**.
 ```
 Extraction + retrieval   16 filings · 4 companies · 6,054 chunks
 Disclosure-drift study  216 filings · 28 companies · FY2018–2024 · 65,000 chunks
-                        263 tests · 23 documented failure modes
+                        275 tests · 24 documented failure modes
 ```
 
 **Two corpora, and the difference matters.** The extraction and retrieval
@@ -31,6 +31,7 @@ overstate it by a factor of 13.
 | Effect of metadata routing | **+70% MRR** | same 182 queries | 0.399 → 0.678; §4a |
 | Reranking on numeric queries | **+0.111 MRR** (p=0.017) | 64 numeric queries | pooled effect is null — §4d |
 | Abstention correctness | **18/18** | same 16 filings | declined only where no ground truth exists; §5 |
+| Unsupported numeric claims in memos | **0 / 499** | 48 memos · 16 filings | 95% upper bound 0.60%; §6 |
 | Disclosure features → 90d excess return | **null** (p = 0.34–0.95) | 155 company-years · 28 companies | permutation-tested; §7 |
 
 Full methodology, ablations and confidence intervals: **[EVALUATION.md](EVALUATION.md)**
@@ -130,7 +131,7 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 cp .env.example .env        # set SEC_USER_AGENT to your name + email (required)
 
-pytest -q                   # 263 tests, no network or API key needed
+pytest -q                   # 275 tests, no network or API key needed
 
 python scripts/01_ingest.py         # EDGAR + XBRL ground truth
 python scripts/03_parse.py          # sections

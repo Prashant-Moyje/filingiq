@@ -339,3 +339,62 @@ def test_summary_always_reports_all_three_quality_flags():
                    {"size_mismatch": True}, {}):
         s = DiffResult("X", 2024, 2023, [], **kwargs).summary()
         assert {"has_baseline", "has_current", "size_mismatch"} <= set(s)
+
+
+# --- negative figures (FM-024) ---------------------------------------------
+#
+# extract_claims had no sign handling, so every negative extracted as POSITIVE
+# and the gate deleted correct sentences about losses. Found by the section 6
+# run: the one claim flagged across 498 was JPM FY2024's "Operating cash flow
+# was negative at $-42.0 billion" -- true, and struck as a fabrication.
+
+def test_the_jpm_sentence_that_exposed_this_verifies():
+    from filingiq.analysis.claims import verify_claims
+    truth = {"operating_cash_flow": -42012000000.0}
+    rep = verify_claims("Operating cash flow was negative at $‑42.0 billion.",
+                        truth)
+    assert not rep.unsupported, (
+        f"a true statement about a negative figure was flagged: "
+        f"{[c.raw for c in rep.unsupported]}")
+
+
+@pytest.mark.parametrize("text", [
+    "Operating cash flow was -42.0 billion.",            # ASCII hyphen
+    "Operating cash flow was ‑42.0 billion.",       # U+2011
+    "Operating cash flow was −42.0 billion.",       # U+2212
+    "Operating cash flow was $-42.0 billion.",           # sign after currency
+    "Operating cash flow was -$42.0 billion.",           # sign before currency
+    "Operating cash flow was $(42.0) billion.",          # accounting parens
+    "Operating cash flow was negative $42.0 billion.",   # word-carried sign
+    "The company reported a loss of $42.0 billion.",     # word-carried sign
+])
+def test_every_way_of_writing_a_negative_is_understood(text):
+    from filingiq.analysis.claims import verify_claims
+    rep = verify_claims(text, {"operating_cash_flow": -42012000000.0})
+    assert not rep.unsupported, f"{text!r} -> {[c.raw for c in rep.unsupported]}"
+
+
+def test_a_sign_flip_is_still_caught():
+    """The fix must not make the gate blind. Claiming a POSITIVE 42.0bn when
+    the truth is negative is a real error and must still be flagged."""
+    from filingiq.analysis.claims import verify_claims
+    rep = verify_claims("Operating cash flow was $42.0 billion.",
+                        {"operating_cash_flow": -42012000000.0})
+    assert rep.unsupported, "a sign error passed the gate"
+
+
+def test_a_dangling_bracket_does_not_negate():
+    """'(see note 3)' and half-open brackets must not silently flip a figure.
+    Only a fully closed accounting parenthesis counts."""
+    from filingiq.analysis.claims import verify_claims
+    rep = verify_claims("Revenue was 177.6 billion (see note 3).",
+                        {"revenue": 177556000000.0})
+    assert not rep.unsupported
+
+
+def test_negating_word_does_not_leak_across_a_sentence():
+    """'negative' in a previous clause must not negate a later figure."""
+    from filingiq.analysis.claims import extract_claims
+    claims = extract_claims("Cash flow was negative. Revenue was 177.6 billion.")
+    assert any(c.value and c.value > 0 for c in claims), (
+        "a negating word leaked forward and flipped an unrelated figure")
