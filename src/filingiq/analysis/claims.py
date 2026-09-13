@@ -32,14 +32,47 @@ from dataclasses import dataclass, field
 # Bare integers under 1000 are ignored: years, counts and list indices are not
 # financial claims and flagging them produces noise that trains people to
 # ignore the flags.
+#
+# NEGATIVE NUMBERS
+# ----------------
+# An earlier version had no sign handling at all, so EVERY form of negative --
+# ASCII minus, the typographic variants a model actually emits, accounting
+# parentheses, and the word "negative" -- extracted as a POSITIVE value. The
+# gate then compared +42.0bn against a true -42.0bn, found a relative error of
+# 2.0, and deleted the sentence.
+#
+# It was not hypothetical. In the section 6 run, the single claim flagged
+# across 498 was JPM FY2024's "Operating cash flow was negative at
+# $-42.0 billion" -- a correct statement about a true -42,012,000,000, struck
+# from the memo as a fabrication. A gate that deletes true sentences about
+# losses is worse than no gate: it is wrong exactly where the disclosure is
+# most sensitive, and it teaches readers to distrust the flags.
+#
+# Models write minus signs as U+2010..U+2013 and U+2212 far more often than as
+# ASCII hyphen, so all of them are accepted. The sign may sit on either side of
+# the currency symbol: both "-$42" and "$-42" occur.
+_MINUS = r"\-‐‑‒–−"
+
 _NUMBER_RE = re.compile(
-    r"""(?<![\w.])
+    rf"""(?<![\w.])
+    (?P<paren>\()?                      # accounting negative: (42.0)
+    (?P<sign1>[{_MINUS}]\s?)?           # -$42
     (?P<currency>[$€£]\s?)?
-    (?P<value>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|\d{4,}|\d{1,3})
+    (?P<sign2>[{_MINUS}]\s?)?           # $-42
+    (?P<value>\d{{1,3}}(?:,\d{{3}})+(?:\.\d+)?|\d+\.\d+|\d{{4,}}|\d{{1,3}})
     \s*
     (?P<scale>billion|bn|million|mn|thousand|trillion|%|percent)?
+    \s*
+    (?P<paren_close>\))?
     (?![\w])""",
     re.IGNORECASE | re.VERBOSE,
+)
+
+# "a loss of $42 billion", "negative $42 billion" -- the sign carried by a word
+# rather than a glyph. Checked against the text immediately preceding a match.
+_NEGATIVE_WORD_RE = re.compile(
+    r"(negative|loss of|losses of|deficit of|outflow of|decline of|down)\W{0,4}$",
+    re.IGNORECASE,
 )
 
 SCALE_WORDS = {
@@ -154,6 +187,19 @@ def extract_claims(text: str) -> list[Claim]:
         is_pct = scale in ("%", "percent")
         if scale in SCALE_WORDS:
             value *= SCALE_WORDS[scale]
+
+        # Sign. A glyph on either side of the currency symbol, a fully closed
+        # accounting parenthesis, or a negating word immediately before.
+        # Parentheses only count when BOTH are present -- "(see note 3)" and a
+        # dangling bracket must not silently flip a figure.
+        negative = bool(m.group("sign1") or m.group("sign2"))
+        if m.group("paren") and m.group("paren_close"):
+            negative = True
+        if not negative and _NEGATIVE_WORD_RE.search(text[:m.start()]):
+            negative = True
+        if negative:
+            value = -value
+
         claims.append(Claim(
             raw=m.group(0).strip(), value=value, is_percentage=is_pct,
             start=m.start(), end=m.end(),

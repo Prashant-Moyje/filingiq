@@ -258,17 +258,63 @@ not the question's.
 
 ## 6. Hallucination rate (Week 5)
 
-Harness: `scripts/11_eval_hallucination.py`. Measurement logic is tested
-offline (`tests/test_hallucination_eval.py`, 17 tests); the numbers below
-require an API key and a built corpus.
+Harness: `scripts/11_eval_hallucination.py`. 16 filings × 3 configurations =
+48 memos, `openai/gpt-oss-120b` via Groq, total cost **$0.0127**.
 
-    python scripts/11_eval_hallucination.py            # all three configs
+| Configuration | Claims / memo | Unsupported (generated) | (shown) | Words kept |
+|---|---|---|---|---|
+| No verification — bare prompt, no gate | 10.44 | **0.000** | 0.000 | 100% |
+| + XBRL cross-check — bare prompt, gate on | 10.44 | **0.000** | 0.000 | 100% |
+| + citation enforcement — full prompt, gate on | 10.31 | **0.000** | 0.000 | 100% |
 
-| Configuration | Unsupported claims / memo (generated) | (shown to reader) |
-|---|---|---|
-| No verification — bare prompt, no gate | *pending* | *pending* |
-| + XBRL cross-check — bare prompt, gate on | *pending* | *pending* |
-| + citation enforcement — full prompt, gate on | *pending* | *pending* |
+**499 numeric claims across 48 memos. Zero unsupported.** The gate removed no
+sentences in any configuration, so it cost nothing in readability either.
+
+### What this does and does not establish
+
+**The ablation is uninformative, and saying so is the point.** All three rows
+are identical because the baseline rate is already zero — there is no headroom
+for a mitigation to demonstrate anything. This is *not* evidence that the
+prompt deterrent and citation enforcement are useless; it is evidence that this
+model, given only verified figures and told to introduce no others, does not
+invent numbers often enough to measure at n=48.
+
+**Zero is not proof of zero.** By the rule of three, 0 events in 499 claims puts
+the 95% upper bound at **0.60% of claims**, or 6.2% of memos. A rate below that
+is entirely consistent with this sample. Reporting "0%" without the bound would
+claim far more than 48 memos can support.
+
+**Why the rate is plausibly this low.** The memo node is handed pre-verified
+figures in its prompt and asked to write prose around them. It is not asked to
+recall or derive anything. That is a deliberately easy generation task, and the
+architecture — deterministic nodes producing the numbers, the LLM only
+narrating them — is what makes it easy. The low rate is a property of the
+design, not of the model's restraint.
+
+### The run's actual finding: a false positive in the gate
+
+The first execution reported 3 unsupported claims across 499. All three were
+the same claim, from JPM FY2024:
+
+> "Operating cash flow was negative at $‑42.0 billion."
+
+True value: **−42,012,000,000**. The memo was correct; the gate was wrong, and
+had deleted the sentence.
+
+`extract_claims` had no sign handling at all. Every way of writing a negative —
+ASCII hyphen, the typographic minus variants a model actually emits (U+2010–
+U+2013, U+2212), accounting parentheses, and the word "negative" — extracted as
+a **positive** value. The gate compared +42.0bn against a true −42.0bn, found a
+relative error of 2.0, and struck a true sentence as fabricated.
+
+This was systematic: any memo describing a loss, a negative cash flow or a
+decline would lose that sentence. A gate that deletes true statements about
+losses is worse than no gate — it fails precisely where disclosure is most
+sensitive, and it teaches readers to distrust the flags. See FM-024.
+
+The table above is the re-run after the fix. **The measured hallucination rate
+of a model writing from verified figures was never above zero; the 0.6% in the
+first run was entirely the instrument.**
 
 **Two columns, because one would be misleading.** Measured on what a reader
 receives, rows 2 and 3 are 0.000 *by construction* — the gate deletes the
